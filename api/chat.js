@@ -3,7 +3,7 @@
 // It reads the "Brain" (Google Sheet), asks Gemini, and returns the answer.
 // The secret key is NOT here. It lives in Vercel Environment Variables.
 
-const MODEL = "gemini-2.5-flash-lite";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"; // Google retired 2.5-flash-lite for new accounts
 const BRAIN_CACHE_MS = 2 * 60 * 1000; // re-read the sheet every 2 minutes
 const MAX_MESSAGES = 12; // how many past messages we send to the AI
 const MAX_CHARS = 500; // max length of one visitor message
@@ -196,7 +196,7 @@ module.exports = async function handler(req, res) {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: buildSystemPrompt(brain) }] },
           contents,
-          generationConfig: { temperature: 0.4, maxOutputTokens: 400 },
+          generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
         }),
       }
     );
