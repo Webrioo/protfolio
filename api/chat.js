@@ -100,6 +100,56 @@ function safeJson(text) {
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
+  // Checkup page: open  /api/chat?check=1  in the browser to see what is broken.
+  // It never shows the secret key. You can delete this block when everything works.
+  if (req.method === "GET" && req.query && req.query.check) {
+    const report = {
+      keyAdded: !!process.env.GEMINI_API_KEY,
+      sheetLinkAdded: !!process.env.BRAIN_CSV_URL,
+    };
+    try {
+      if (report.sheetLinkAdded) {
+        const sr = await fetch(process.env.BRAIN_CSV_URL);
+        const st = await sr.text();
+        report.sheetHttpStatus = sr.status;
+        report.sheetRowsFound = parseCsv(st).length - 1;
+        report.sheetLooksLikeCsv = !/^\s*<(!doctype|html)/i.test(st);
+      }
+    } catch (e) {
+      report.sheetError = String(e.message).slice(0, 150);
+    }
+    try {
+      if (report.keyAdded) {
+        const gr = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/" +
+            MODEL +
+            ":generateContent",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": process.env.GEMINI_API_KEY,
+            },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: "Say hi" }] }],
+              generationConfig: { maxOutputTokens: 10 },
+            }),
+          }
+        );
+        const gd = await gr.json().catch(() => ({}));
+        report.geminiHttpStatus = gr.status;
+        if (!gr.ok) {
+          report.geminiMessage = String(
+            (gd.error && gd.error.message) || "unknown"
+          ).slice(0, 200);
+        }
+      }
+    } catch (e) {
+      report.geminiError = String(e.message).slice(0, 150);
+    }
+    return res.status(200).json(report);
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Use POST" });
   }
